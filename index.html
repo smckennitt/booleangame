@@ -210,4 +210,218 @@
         let maxTime = 20;
         let timeLeft = 20; 
 
-        const gridElement = document.getElementById('grid
+        const gridElement = document.getElementById('grid');
+        const expressionElement = document.getElementById('expression');
+        const levelDisplay = document.getElementById('levelDisplay');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const timerContainer = document.getElementById('timerContainer');
+        const timerBar = document.getElementById('timerBar');
+        const gameOverContainer = document.getElementById('gameOverContainer');
+        const expressionContainer = document.getElementById('expressionContainer');
+        const gameOverTitle = document.getElementById('gameOverTitle');
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function generateBoxes() {
+            let boxes = [];
+            colors.forEach(c => {
+                numbers.forEach(n => {
+                    boxes.push({ color: c, number: n });
+                });
+            });
+            return shuffle(boxes);
+        }
+
+        function randomChoice(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        function generateExpression(difficulty) {
+            let exp;
+            let isValid = false;
+            let matchedCount = 0;
+
+            while (!isValid) {
+                if (difficulty <= 2) {
+                    exp = getSimpleExpression();
+                } else if (difficulty <= 4) {
+                    exp = getNotOrComparisonExpression();
+                } else if (difficulty <= 7) {
+                    exp = getCompoundExpression();
+                } else {
+                    exp = getComplexExpression();
+                }
+
+                matchedCount = 0;
+                currentBoxes.forEach(box => {
+                    if (exp.test(box)) matchedCount++;
+                });
+
+                if (matchedCount > 0 && matchedCount < 9) {
+                    isValid = true;
+                }
+            }
+            return { exp, matchedCount };
+        }
+
+        function getSimpleExpression() {
+            const type = Math.random() > 0.5 ? 'color' : 'number';
+            if (type === 'color') {
+                const c = randomChoice(colors);
+                return { text: c, test: (box) => box.color === c };
+            } else {
+                const n = randomChoice(numbers);
+                return { text: `${n}`, test: (box) => box.number === n };
+            }
+        }
+
+        function getNotOrComparisonExpression() {
+            const types = ['not_color', 'not_number', 'greater', 'less'];
+            const type = randomChoice(types);
+
+            if (type === 'not_color') {
+                const c = randomChoice(colors);
+                return { text: `!${c}`, test: (box) => box.color !== c };
+            } else if (type === 'not_number') {
+                const n = randomChoice(numbers);
+                return { text: `!${n}`, test: (box) => box.number !== n };
+            } else if (type === 'greater') {
+                const n = randomChoice([1, 2]); 
+                return { text: `> ${n}`, test: (box) => box.number > n };
+            } else {
+                const n = randomChoice([2, 3]); 
+                return { text: `< ${n}`, test: (box) => box.number < n };
+            }
+        }
+
+        function getCompoundExpression() {
+            const opText = Math.random() > 0.5 ? '&&' : '||';
+            const exp1 = getSimpleExpression();
+            const exp2 = getNotOrComparisonExpression();
+
+            return {
+                text: `${exp1.text} ${opText} ${exp2.text}`,
+                test: (box) => opText === '&&' ? (exp1.test(box) && exp2.test(box)) : (exp1.test(box) || exp2.test(box))
+            };
+        }
+
+        function getComplexExpression() {
+            const opText = Math.random() > 0.5 ? '&&' : '||';
+            const exp1 = getNotOrComparisonExpression();
+            const exp2 = getNotOrComparisonExpression();
+
+            return {
+                text: `${exp1.text} ${opText} ${exp2.text}`,
+                test: (box) => opText === '&&' ? (exp1.test(box) && exp2.test(box)) : (exp1.test(box) || exp2.test(box))
+            };
+        }
+
+        function renderGrid() {
+            gridElement.innerHTML = '';
+            currentBoxes.forEach((box, index) => {
+                const el = document.createElement('div');
+                el.className = `box ${box.color}`;
+                el.textContent = box.number;
+                el.onclick = () => handleBoxClick(el, box);
+                gridElement.appendChild(el);
+            });
+        }
+
+        function handleBoxClick(element, box) {
+            if (element.classList.contains('clicked')) return; 
+
+            const isCorrect = currentLogic.test(box);
+
+            if (isCorrect) {
+                element.classList.add('clicked');
+                score += 1;
+                clickedCorrectCount += 1;
+                scoreDisplay.textContent = `${score}pt`;
+
+                if (clickedCorrectCount === correctBoxesCount) {
+                    clearInterval(timerInterval); // Stop timer while setting up next level
+                    level += 1;
+                    setTimeout(startLevel, 300);
+                }
+            } else {
+                gameOver("Wrong Box!");
+            }
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            
+            if (level >= 5) {
+                timerContainer.style.display = 'block';
+                
+                // Starts at 20s, drops 1s every 3 levels. Minimum time 3s.
+                maxTime = Math.max(3, 20 - Math.floor((level - 5) / 3));
+                timeLeft = maxTime;
+                timerBar.style.width = '100%';
+                
+                // Update the bar every 50ms for a smooth animation
+                timerInterval = setInterval(() => {
+                    timeLeft -= 0.05; 
+                    
+                    let percentage = (timeLeft / maxTime) * 100;
+                    timerBar.style.width = `${percentage}%`;
+                    
+                    if (timeLeft <= 0) {
+                        clearInterval(timerInterval);
+                        timerBar.style.width = '0%';
+                        gameOver("Time's Up!");
+                    }
+                }, 50);
+            } else {
+                timerContainer.style.display = 'none';
+            }
+        }
+
+        function startLevel() {
+            levelDisplay.textContent = `lv.${level}`;
+            clickedCorrectCount = 0;
+            currentBoxes = generateBoxes();
+            
+            const generated = generateExpression(level);
+            currentLogic = generated.exp;
+            correctBoxesCount = generated.matchedCount;
+
+            expressionElement.textContent = currentLogic.text;
+            renderGrid();
+            startTimer();
+        }
+
+        function gameOver(reason) {
+            clearInterval(timerInterval);
+            gridElement.style.display = 'none';
+            expressionContainer.style.display = 'none';
+            timerContainer.style.display = 'none';
+            gameOverContainer.style.display = 'flex';
+            
+            gameOverTitle.textContent = reason;
+            
+            const percentile = Math.min(99, Math.max(10, Math.floor((score / 50) * 100) + Math.floor(Math.random() * 5)));
+            document.getElementById('resultText').innerHTML = `You beat <strong>${percentile}%</strong> of all players.<br><br>Final Score: ${score} points (Level ${level})`;
+        }
+
+        function initGame() {
+            level = 1;
+            score = 0;
+            clearInterval(timerInterval);
+            scoreDisplay.textContent = `${score}pt`;
+            gridElement.style.display = 'grid';
+            expressionContainer.style.display = 'flex';
+            gameOverContainer.style.display = 'none';
+            startLevel();
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
