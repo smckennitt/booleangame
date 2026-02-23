@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boolean Game</title>
+    <style>
+        :root {
+            --red: #e74c3c;
+            --green: #2ecc71;
+            --blue: #3498db;
+            --bg: #f5f6fa;
+            --text: #2f3640;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+            user-select: none;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 400px;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .timer {
+            color: var(--red);
+            display: none; /* Hidden until level 6 */
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .expression-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            margin-bottom: 30px;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .expression {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .box {
+            width: 100px;
+            height: 100px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+            transition: transform 0.1s, opacity 0.3s;
+        }
+
+        .box:active {
+            transform: scale(0.95);
+        }
+
+        .box.clicked {
+            opacity: 0.3;
+            pointer-events: none;
+        }
+
+        .box.red { background-color: var(--red); }
+        .box.green { background-color: var(--green); }
+        .box.blue { background-color: var(--blue); }
+
+        .game-over-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .reset-btn {
+            background-color: var(--text);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: background-color 0.2s;
+        }
+
+        .reset-btn:hover {
+            background-color: #555;
+        }
+
+        .rules {
+            margin-top: 30px;
+            max-width: 500px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .rules h2 { margin-top: 0; font-size: 1.2rem; }
+        .rules ul { padding-left: 20px; margin: 0; line-height: 1.6; }
+
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div id="levelDisplay">lv.1</div>
+        <div id="timerDisplay" class="timer">10s</div>
+        <div id="scoreDisplay">0pt</div>
+    </div>
+
+    <h1>Boolean Game</h1>
+
+    <div class="expression-container" id="expressionContainer">
+        <div class="expression" id="expression">Loading...</div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <div class="game-over-container" id="gameOverContainer">
+        <h2 style="color: var(--red); margin-top: 0;" id="gameOverTitle">Game Over!</h2>
+        <p id="resultText"></p>
+        <button class="reset-btn" onclick="initGame()">Reset</button>
+    </div>
+
+    <div class="rules">
+        <h2>Game Rules:</h2>
+        <ul>
+            <li>You are given a boolean expression and 9 boxes (3 colors x 3 numbers).</li>
+            <li>Click on <strong>all</strong> boxes that satisfy the boolean expression.</li>
+            <li>You receive 1 point for every correct box you click on.</li>
+            <li>The game is over if you select an incorrect box.</li>
+            <li><strong>New:</strong> After Level 5, you only have 10 seconds to solve the grid!</li>
+        </ul>
+    </div>
+
+    <script>
+        const colors = ['red', 'green', 'blue'];
+        const numbers = [1, 2, 3];
+        
+        let level = 1;
+        let score = 0;
+        let currentBoxes = [];
+        let correctBoxesCount = 0;
+        let clickedCorrectCount = 0;
+        let currentLogic = null;
+        
+        // Timer variables
+        let timerInterval;
+        let timeLeft = 10; 
+
+        const gridElement = document.getElementById('grid');
+        const expressionElement = document.getElementById('expression');
+        const levelDisplay = document.getElementById('levelDisplay');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const gameOverContainer = document.getElementById('gameOverContainer');
+        const expressionContainer = document.getElementById('expressionContainer');
+        const gameOverTitle = document.getElementById('gameOverTitle');
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function generateBoxes() {
+            let boxes = [];
+            colors.forEach(c => {
+                numbers.forEach(n => {
+                    boxes.push({ color: c, number: n });
+                });
+            });
+            return shuffle(boxes);
+        }
+
+        function randomChoice(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        function generateExpression(difficulty) {
+            let exp;
+            let isValid = false;
+            let matchedCount = 0;
+
+            while (!isValid) {
+                if (difficulty <= 2) {
+                    exp = getSimpleExpression();
+                } else if (difficulty <= 4) {
+                    exp = getNotOrComparisonExpression();
+                } else if (difficulty <= 7) {
+                    exp = getCompoundExpression();
+                } else {
+                    exp = getComplexExpression();
+                }
+
+                matchedCount = 0;
+                currentBoxes.forEach(box => {
+                    if (exp.test(box)) matchedCount++;
+                });
+
+                if (matchedCount > 0 && matchedCount < 9) {
+                    isValid = true;
+                }
+            }
+            return { exp, matchedCount };
+        }
+
+        function getSimpleExpression() {
+            const type = Math.random() > 0.5 ? 'color' : 'number';
+            if (type === 'color') {
+                const c = randomChoice(colors);
+                return { text: c, test: (box) => box.color === c };
+            } else {
+                const n = randomChoice(numbers);
+                return { text: `${n}`, test: (box) => box.number === n };
+            }
+        }
+
+        function getNotOrComparisonExpression() {
+            const types = ['not_color', 'not_number', 'greater', 'less'];
+            const type = randomChoice(types);
+
+            if (type === 'not_color') {
+                const c = randomChoice(colors);
+                return { text: `!${c}`, test: (box) => box.color !== c };
+            } else if (type === 'not_number') {
+                const n = randomChoice(numbers);
+                return { text: `!${n}`, test: (box) => box.number !== n };
+            } else if (type === 'greater') {
+                const n = randomChoice([1, 2]); 
+                return { text: `> ${n}`, test: (box) => box.number > n };
+            } else {
+                const n = randomChoice([2, 3]); 
+                return { text: `< ${n}`, test: (box) => box.number < n };
+            }
+        }
+
+        function getCompoundExpression() {
+            const opText = Math.random() > 0.5 ? '&&' : '||';
+            const exp1 = getSimpleExpression();
+            const exp2 = getNotOrComparisonExpression();
+
+            return {
+                text: `${exp1.text} ${opText} ${exp2.text}`,
+                test: (box) => opText === '&&' ? (exp1.test(box) && exp2.test(box)) : (exp1.test(box) || exp2.test(box))
+            };
+        }
+
+        function getComplexExpression() {
+            const opText = Math.random() > 0.5 ? '&&' : '||';
+            const exp1 = getNotOrComparisonExpression();
+            const exp2 = getNotOrComparisonExpression();
+
+            return {
+                text: `${exp1.text} ${opText} ${exp2.text}`,
+                test: (box) => opText === '&&' ? (exp1.test(box) && exp2.test(box)) : (exp1.test(box) || exp2.test(box))
+            };
+        }
+
+        function renderGrid() {
+            gridElement.innerHTML = '';
+            currentBoxes.forEach((box, index) => {
+                const el = document.createElement('div');
+                el.className = `box ${box.color}`;
+                el.textContent = box.number;
+                el.onclick = () => handleBoxClick(el, box);
+                gridElement.appendChild(el);
+            });
+        }
+
+        function handleBoxClick(element, box) {
+            if (element.classList.contains('clicked')) return; 
+
+            const isCorrect = currentLogic.test(box);
+
+            if (isCorrect) {
+                element.classList.add('clicked');
+                score += 1;
+                clickedCorrectCount += 1;
+                scoreDisplay.textContent = `${score}pt`;
+
+                if (clickedCorrectCount === correctBoxesCount) {
+                    clearInterval(timerInterval); // Stop timer while setting up next level
+                    level += 1;
+                    setTimeout(startLevel, 300);
+                }
+            } else {
+                gameOver("Wrong Box!");
+            }
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            if (level > 5) {
+                timeLeft = 10; // Reset timer to 10 seconds
+                timerDisplay.style.display = 'block';
+                timerDisplay.textContent = `${timeLeft}s`;
+                
+                timerInterval = setInterval(() => {
+                    timeLeft--;
+                    timerDisplay.textContent = `${timeLeft}s`;
+                    
+                    if (timeLeft <= 0) {
+                        clearInterval(timerInterval);
+                        gameOver("Time's Up!");
+                    }
+                }, 1000);
+            } else {
+                timerDisplay.style.display = 'none';
+            }
+        }
+
+        function startLevel() {
+            levelDisplay.textContent = `lv.${level}`;
+            clickedCorrectCount = 0;
+            currentBoxes = generateBoxes();
+            
+            const generated = generateExpression(level);
+            currentLogic = generated.exp;
+            correctBoxesCount = generated.matchedCount;
+
+            expressionElement.textContent = currentLogic.text;
+            renderGrid();
+            startTimer();
+        }
+
+        function gameOver(reason) {
+            clearInterval(timerInterval);
+            gridElement.style.display = 'none';
+            expressionContainer.style.display = 'none';
+            gameOverContainer.style.display = 'flex';
+            
+            gameOverTitle.textContent = reason;
+            
+            const percentile = Math.min(99, Math.max(10, Math.floor((score / 50) * 100) + Math.floor(Math.random() * 5)));
+            document.getElementById('resultText').innerHTML = `You beat <strong>${percentile}%</strong> of all players.<br><br>Final Score: ${score} points (Level ${level})`;
+        }
+
+        function initGame() {
+            level = 1;
+            score = 0;
+            clearInterval(timerInterval);
+            scoreDisplay.textContent = `${score}pt`;
+            gridElement.style.display = 'grid';
+            expressionContainer.style.display = 'flex';
+            gameOverContainer.style.display = 'none';
+            startLevel();
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
